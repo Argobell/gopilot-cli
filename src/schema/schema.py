@@ -3,11 +3,13 @@ from typing import Any
 
 from pydantic import BaseModel
 
+
 class LLMProvider(str, Enum):
     """LLM provider types."""
 
     # ANTHROPIC = "anthropic"
     OPENAI = "openai"
+
 
 class FunctionCall(BaseModel):
     """Function call details."""
@@ -15,12 +17,14 @@ class FunctionCall(BaseModel):
     name: str
     arguments: dict[str, Any]  # Function arguments as dict
 
+
 class ToolCall(BaseModel):
     """Tool call structure."""
 
     id: str
     type: str  # "function"
     function: FunctionCall
+
 
 class Message(BaseModel):
     """Chat message."""
@@ -31,6 +35,7 @@ class Message(BaseModel):
     tool_calls: list[ToolCall] | None = None
     tool_call_id: str | None = None
     name: str | None = None  # For tool role
+
 
 class LLMResponse(BaseModel):
     """LLM response."""

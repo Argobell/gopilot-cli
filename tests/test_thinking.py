@@ -16,13 +16,13 @@ async def test_thinking_content():
         api_key="dummy-key",
         provider=LLMProvider.OPENAI,
         api_base="http://localhost:8080",
-        model="gpt-oss"
+        model="gpt-oss",
     )
 
     messages = [
         Message(
             role="user",
-            content="Please think step by step and solve this: What is 15 * 23?"
+            content="Please think step by step and solve this: What is 15 * 23?",
         )
     ]
 
@@ -44,7 +44,9 @@ async def test_thinking_content():
         print(f"✓ Thinking content was extracted!")
         print(f"  Thinking length: {len(response.thinking)} chars")
     else:
-        print(f"ℹ No thinking content in response (model may not support reasoning_split)")
+        print(
+            f"ℹ No thinking content in response (model may not support reasoning_split)"
+        )
 
 
 @pytest.mark.asyncio
@@ -54,7 +56,7 @@ async def test_thinking_preservation_in_history():
         api_key="dummy-key",
         provider=LLMProvider.OPENAI,
         api_base="http://localhost:8080",
-        model="gpt-oss"
+        model="gpt-oss",
     )
 
     # First turn
@@ -67,16 +69,12 @@ async def test_thinking_preservation_in_history():
     # Add assistant's response to history
     messages.append(
         Message(
-            role="assistant",
-            content=response1.content,
-            thinking=response1.thinking
+            role="assistant", content=response1.content, thinking=response1.thinking
         )
     )
 
     # Second turn with follow-up
-    messages.append(
-        Message(role="user", content="What about 2+3?")
-    )
+    messages.append(Message(role="user", content="What about 2+3?"))
 
     response2 = await client.generate(messages)
 
@@ -107,7 +105,7 @@ async def test_complex_reasoning():
         api_key="dummy-key",
         provider=LLMProvider.OPENAI,
         api_base="http://localhost:8080",
-        model="gpt-oss"
+        model="gpt-oss",
     )
 
     messages = [
@@ -117,7 +115,7 @@ async def test_complex_reasoning():
 1. What is 10 + 5?
 2. Multiply that result by 2
 3. Subtract 5 from that
-Show your thinking process."""
+Show your thinking process.""",
         )
     ]
 
@@ -156,6 +154,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"\n❌ Test failed with error: {e}")
             import traceback
+
             traceback.print_exc()
 
     asyncio.run(run_tests())

@@ -6,7 +6,7 @@ from src.schema import LLMResponse, Message
 
 class LLMClientBase(ABC):
     """Abstract base class for LLM clients.
-    
+
     This class defines the interface that all LLM clients must implement
     """
 
@@ -17,7 +17,7 @@ class LLMClientBase(ABC):
         model: str,
     ):
         """Initialize the LLM client.
-        
+
         Args:
             api_key: API key for authentication
             api_base: Base URL for the API
@@ -26,7 +26,7 @@ class LLMClientBase(ABC):
         self.api_key = api_key
         self.api_base = api_base
         self.model = model
-    
+
     @abstractmethod
     async def generate(
         self,
@@ -34,11 +34,11 @@ class LLMClientBase(ABC):
         tools: list[Any] | None = None,
     ) -> LLMResponse:
         """Generate response from LLM.
-        
+
         Args:
             messages: List of conversation messages
             tools: Optional list of Tool objects or dicts
-        
+
         Returns:
             LLMResponse containing the generated content, thinking, and tool calls
         """
@@ -51,7 +51,7 @@ class LLMClientBase(ABC):
         tools: list[Any] | None = None,
     ) -> dict[str, Any]:
         """Prepare the request payload for the LLM API.
-        
+
         Args:
             messages: List of conversation messages
             tools: Optional list of available tools
@@ -61,7 +61,9 @@ class LLMClientBase(ABC):
         pass
 
     @abstractmethod
-    def _convert_messages(self, messages: list[Message]) -> tuple[str | None, list[dict[str, Any]]]:
+    def _convert_messages(
+        self, messages: list[Message]
+    ) -> tuple[str | None, list[dict[str, Any]]]:
         """Convert internal message format to API-specific format.
 
         Args:

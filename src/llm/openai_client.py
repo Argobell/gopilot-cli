@@ -12,6 +12,7 @@ from src.llm.base import LLMClientBase
 
 logger = logging.getLogger(__name__)
 
+
 class OpenAIClient(LLMClientBase):
     """LLM client using OpenAI's protocol.
 
@@ -42,12 +43,11 @@ class OpenAIClient(LLMClientBase):
             base_url=api_base,
         )
 
-    
     async def _make_api_request(
-            self,
-            api_messages: list[dict[str, Any]],
-            tools: list[Any] | None = None,
-        ):
+        self,
+        api_messages: list[dict[str, Any]],
+        tools: list[Any] | None = None,
+    ):
         """Execute API request (core method).
         Args:
             api_messages: List of messages in OpenAI format
@@ -65,12 +65,11 @@ class OpenAIClient(LLMClientBase):
 
         if tools:
             params["tools"] = self._convert_tools(tools)
-        
+
         # Use OpenAI SDK's chat.completions.create
         response = await self.client.chat.completions.create(**params)
         return response.choices[0].message
-    
-    
+
     def _convert_tools(self, tools: list[Any]) -> list[dict[str, Any]]:
         """Convert tools to OpenAI format.
 
@@ -104,9 +103,10 @@ class OpenAIClient(LLMClientBase):
             else:
                 raise TypeError(f"Unsupported tool type: {type(tool)}")
         return result
-    
 
-    def _convert_messages(self, messages: list[Message]) -> tuple[str | None, list[dict[str, Any]]]:
+    def _convert_messages(
+        self, messages: list[Message]
+    ) -> tuple[str | None, list[dict[str, Any]]]:
         """Convert internal messages to OpenAI format.
 
         Args:
@@ -146,7 +146,9 @@ class OpenAIClient(LLMClientBase):
                                 "type": "function",
                                 "function": {
                                     "name": tool_call.function.name,
-                                    "arguments": json.dumps(tool_call.function.arguments),
+                                    "arguments": json.dumps(
+                                        tool_call.function.arguments
+                                    ),
                                 },
                             }
                         )
@@ -173,7 +175,6 @@ class OpenAIClient(LLMClientBase):
                 )
 
         return None, api_messages
-    
 
     def _prepare_request(
         self,
@@ -195,7 +196,6 @@ class OpenAIClient(LLMClientBase):
             "api_messages": api_messages,
             "tools": tools,
         }
-    
 
     def _parse_response(self, response: Any) -> LLMResponse:
         """Parse OpenAI response into LLMResponse.
@@ -239,7 +239,7 @@ class OpenAIClient(LLMClientBase):
             tool_calls=tool_calls if tool_calls else None,
             finish_reason="stop",  # OpenAI doesn't provide finish_reason in the message
         )
-    
+
     async def generate(
         self,
         messages: list[Message],

@@ -17,7 +17,7 @@ async def test_basic_chat():
         api_key="dummy-key",  # llama.cpp typically doesn't require real API key
         provider=LLMProvider.OPENAI,
         api_base="http://localhost:8080",
-        model="gpt-oss"  # Your model name
+        model="gpt-oss",  # Your model name
     )
 
     # Create a simple message
@@ -43,13 +43,13 @@ async def test_multi_turn_conversation():
         api_key="dummy-key",
         provider=LLMProvider.OPENAI,
         api_base="http://localhost:8080",
-        model="gpt-oss"
+        model="gpt-oss",
     )
 
     messages = [
         Message(role="user", content="What is 2+2?"),
         Message(role="assistant", content="2+2 equals 4."),
-        Message(role="user", content="What about 4+4?")
+        Message(role="user", content="What about 4+4?"),
     ]
 
     response = await client.generate(messages)
@@ -67,12 +67,15 @@ async def test_system_message():
         api_key="dummy-key",
         provider=LLMProvider.OPENAI,
         api_base="http://localhost:8080",
-        model="gpt-oss"
+        model="gpt-oss",
     )
 
     messages = [
-        Message(role="system", content="You are a helpful assistant that always responds with 'YES'."),
-        Message(role="user", content="Are you working?")
+        Message(
+            role="system",
+            content="You are a helpful assistant that always responds with 'YES'.",
+        ),
+        Message(role="user", content="Are you working?"),
     ]
 
     response = await client.generate(messages)
@@ -90,7 +93,7 @@ async def test_tool_call_support():
         api_key="dummy-key",
         provider=LLMProvider.OPENAI,
         api_base="http://localhost:8080",
-        model="gpt-oss"
+        model="gpt-oss",
     )
 
     # Simple tool definition
@@ -103,20 +106,15 @@ async def test_tool_call_support():
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "city": {
-                            "type": "string",
-                            "description": "City name"
-                        }
+                        "city": {"type": "string", "description": "City name"}
                     },
-                    "required": ["city"]
-                }
-            }
+                    "required": ["city"],
+                },
+            },
         }
     ]
 
-    messages = [
-        Message(role="user", content="What is the weather in Beijing?")
-    ]
+    messages = [Message(role="user", content="What is the weather in Beijing?")]
 
     response = await client.generate(messages, tools=tools)
 
@@ -159,6 +157,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"\n❌ Test failed with error: {e}")
             import traceback
+
             traceback.print_exc()
 
     asyncio.run(run_tests())

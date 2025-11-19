@@ -12,6 +12,7 @@ from src.llm.openai_client import OpenAIClient
 
 logger = logging.getLogger(__name__)
 
+
 class LLMClient:
     """LLM Client wrapper supporting OpenAI provider.
 
@@ -22,6 +23,7 @@ class LLMClient:
     Supported provider:
     - openai: Appends /v1 to api_base
     """
+
     def __init__(
         self,
         api_key: str,
@@ -52,14 +54,17 @@ class LLMClient:
         if provider == LLMProvider.OPENAI:
             self._client = OpenAIClient(
                 api_key=api_key,
-                    api_base=full_api_base,
-                    model=model,
-                )
+                api_base=full_api_base,
+                model=model,
+            )
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
-        logger.info("Initialized LLM client with provider: %s, api_base: %s", provider, full_api_base)
-
+        logger.info(
+            "Initialized LLM client with provider: %s, api_base: %s",
+            provider,
+            full_api_base,
+        )
 
     async def generate(
         self,
