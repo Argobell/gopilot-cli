@@ -12,6 +12,10 @@
   - [BashOutputTool](#bashoutputtool)
   - [BashKillTool](#bashkilltool)
   - [BashOutputResult](#bashoutputresult)
+- [文件操作工具](#文件操作工具)
+  - [ReadTool](#readtool)
+  - [WriteTool](#writetool)
+  - [EditTool](#edittool)
 - [后台进程管理](#后台进程管理)
   - [BackgroundShell](#backgroundshell)
   - [BackgroundShellManager](#backgroundshellmanager)
@@ -864,6 +868,597 @@ print(f"格式化内容: {result.content}")
 result = await bash_tool.execute("sleep 10", run_in_background=True)
 
 print(f"后台 ID: {result.bash_id}")  # abc12345
+```
+
+---
+
+## 文件操作工具
+
+### ReadTool
+
+`src/tools/file_tools.py`
+
+读取文件内容的工具，支持带行号的输出和分块读取。
+
+#### 类签名
+
+```python
+class ReadTool(Tool):
+    """读取文件内容"""
+```
+
+#### 构造函数
+
+```python
+def __init__(self, workspace_dir: str = "."):
+    """初始化 ReadTool"""
+```
+
+**参数**：
+- `workspace_dir: str`：工作目录，用于解析相对路径（默认为当前目录）
+
+**示例**：
+```python
+read_tool = ReadTool(workspace_dir="/path/to/workspace")
+```
+
+#### 属性
+
+##### `name`
+
+```python
+@property
+def name(self) -> str:
+    return "read_file"
+```
+
+##### `description`
+
+```python
+@property
+def description(self) -> str:
+    return (
+        "Read file contents from the filesystem. Output always includes line numbers "
+        "in format 'LINE_NUMBER|LINE_CONTENT' (1-indexed). Supports reading partial content "
+        "by specifying line offset and limit for large files. "
+        "You can call this tool multiple times in parallel to read different files simultaneously."
+    )
+```
+
+##### `parameters`
+
+```python
+@property
+def parameters(self) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Absolute or relative path to the file",
+            },
+            "offset": {
+                "type": "integer",
+                "description": "Starting line number (1-indexed). Use for large files to read from specific line",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Number of lines to read. Use with offset for large files to read in chunks",
+            },
+        },
+        "required": ["path"],
+    }
+```
+
+#### 方法
+
+##### `execute()`
+
+```python
+async def execute(
+    self,
+    path: str,
+    offset: int | None = None,
+    limit: int | None = None,
+) -> ToolResult:
+    """读取文件内容"""
+```
+
+**参数**：
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `path` | `str` | ✅ | - | 文件路径（绝对或相对） |
+| `offset` | `int \| None` | ❌ | `None` | 起始行号（1-indexed） |
+| `limit` | `int \| None` | ❌ | `None` | 读取行数 |
+
+**返回值**：
+- `ToolResult`：包含文件内容的成功结果，或错误信息
+
+**特性**：
+- ✅ **带行号输出**：每行以 `LINE_NUMBER|LINE_CONTENT` 格式输出
+- ✅ **智能截断**：超过 32000 tokens 时自动截断（保留首尾部分）
+- ✅ **工作目录解析**：相对路径基于 `workspace_dir` 解析
+- ✅ **分块读取**：支持 `offset` 和 `limit` 参数读取大文件
+
+**示例 1：读取整个文件**
+
+```python
+read_tool = ReadTool()
+
+result = await read_tool.execute(path="example.txt")
+
+if result.success:
+    print(result.content)
+    # 输出格式:
+    #      1|First line
+    #      2|Second line
+    #      3|Third line
+else:
+    print(f"错误: {result.error}")
+```
+
+**示例 2：分块读取大文件**
+
+```python
+read_tool = ReadTool()
+
+# 读取第 100-200 行
+result = await read_tool.execute(
+    path="large_file.py",
+    offset=100,
+    limit=100
+)
+
+if result.success:
+    print(result.content)
+```
+
+**示例 3：从特定行开始读取**
+
+```python
+read_tool = ReadTool()
+
+# 从第 50 行开始读取到文件末尾
+result = await read_tool.execute(
+    path="file.txt",
+    offset=50
+)
+
+if result.success:
+    print(result.content)
+```
+
+**错误处理**：
+
+```python
+# 文件不存在
+result = await read_tool.execute(path="nonexistent.txt")
+# result.success = False
+# result.error = "File not found: nonexistent.txt"
+
+# 目录路径
+result = await read_tool.execute(path="/some/directory")
+# 仍然可以读取目录（将显示目录内容）
+```
+
+---
+
+### WriteTool
+
+`src/tools/file_tools.py`
+
+写入内容到文件的工具，支持创建新文件和覆盖现有文件。
+
+#### 类签名
+
+```python
+class WriteTool(Tool):
+    """写入内容到文件"""
+```
+
+#### 构造函数
+
+```python
+def __init__(self, workspace_dir: str = "."):
+    """初始化 WriteTool"""
+```
+
+**参数**：
+- `workspace_dir: str`：工作目录，用于解析相对路径（默认为当前目录）
+
+**示例**：
+```python
+write_tool = WriteTool(workspace_dir="/path/to/workspace")
+```
+
+#### 属性
+
+##### `name`
+
+```python
+@property
+def name(self) -> str:
+    return "write_file"
+```
+
+##### `description`
+
+```python
+@property
+def description(self) -> str:
+    return (
+        "Write content to a file. Will overwrite existing files completely. "
+        "For existing files, you should read the file first using read_file. "
+        "Prefer editing existing files over creating new ones unless explicitly needed."
+    )
+```
+
+##### `parameters`
+
+```python
+@property
+def parameters(self) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Absolute or relative path to the file",
+            },
+            "content": {
+                "type": "string",
+                "description": "Complete content to write (will replace existing content)",
+            },
+        },
+        "required": ["path", "content"],
+    }
+```
+
+#### 方法
+
+##### `execute()`
+
+```python
+async def execute(
+    self,
+    path: str,
+    content: str,
+) -> ToolResult:
+    """写入文件内容"""
+```
+
+**参数**：
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `path` | `str` | ✅ | 文件路径（绝对或相对） |
+| `content` | `str` | ✅ | 要写入的完整内容 |
+
+**返回值**：
+- `ToolResult`：包含写入状态和文件路径的成功结果，或错误信息
+
+**特性**：
+- ✅ **自动创建目录**：如果父目录不存在，自动创建
+- ✅ **工作目录解析**：相对路径基于 `workspace_dir` 解析
+- ⚠️ **完全覆盖**：会完全覆盖现有文件内容
+- ✅ **UTF-8 编码**：使用 UTF-8 编码写入文件
+
+**示例 1：创建新文件**
+
+```python
+write_tool = WriteTool()
+
+result = await write_tool.execute(
+    path="new_file.txt",
+    content="Hello, World!\nThis is a new file."
+)
+
+if result.success:
+    print(result.content)  # Successfully wrote to /path/to/new_file.txt
+else:
+    print(f"错误: {result.error}")
+```
+
+**示例 2：写入代码文件**
+
+```python
+write_tool = WriteTool()
+
+code_content = '''def hello():
+    print("Hello, World!")
+    return True
+
+if __name__ == "__main__":
+    hello()
+'''
+
+result = await write_tool.execute(
+    path="hello.py",
+    content=code_content
+)
+
+if result.success:
+    print("代码文件已创建")
+```
+
+**示例 3：覆盖现有文件**
+
+```python
+write_tool = WriteTool()
+
+# ⚠️ 这会完全覆盖现有文件
+result = await write_tool.execute(
+    path="config.json",
+    content='{"setting": "new_value"}'
+)
+
+# 建议：先读取现有文件再写入
+read_tool = ReadTool()
+old_content = await read_tool.execute(path="config.json")
+
+new_content = old_content.content.replace(
+    '"setting": "old_value"',
+    '"setting": "new_value"'
+)
+
+await write_tool.execute(path="config.json", content=new_content)
+```
+
+**错误处理**：
+
+```python
+result = await write_tool.execute(
+    path="/root/restricted_file.txt",
+    content="test"
+)
+
+if not result.success:
+    print(f"写入失败: {result.error}")
+    # 可能的原因：权限不足、磁盘空间不足等
+```
+
+---
+
+### EditTool
+
+`src/tools/file_tools.py`
+
+通过精确字符串替换编辑文件的工具。
+
+#### 类签名
+
+```python
+class EditTool(Tool):
+    """编辑文件（精确字符串替换）"""
+```
+
+#### 构造函数
+
+```python
+def __init__(self, workspace_dir: str = "."):
+    """初始化 EditTool"""
+```
+
+**参数**：
+- `workspace_dir: str`：工作目录，用于解析相对路径（默认为当前目录）
+
+#### 属性
+
+##### `name`
+
+```python
+@property
+def name(self) -> str:
+    return "edit_file"
+```
+
+##### `description`
+
+```python
+@property
+def description(self) -> str:
+    return (
+        "Perform exact string replacement in a file. The old_str must match exactly "
+        "and appear uniquely in the file, otherwise the operation will fail. "
+        "You must read the file first before editing. Preserve exact indentation from the source."
+    )
+```
+
+##### `parameters`
+
+```python
+@property
+def parameters(self) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Absolute or relative path to the file",
+            },
+            "old_str": {
+                "type": "string",
+                "description": "Exact string to find and replace (must be unique in file)",
+            },
+            "new_str": {
+                "type": "string",
+                "description": "Replacement string (use for refactoring, renaming, etc.)",
+            },
+        },
+        "required": ["path", "old_str", "new_str"],
+    }
+```
+
+#### 方法
+
+##### `execute()`
+
+```python
+async def execute(
+    self,
+    path: str,
+    old_str: str,
+    new_str: str,
+) -> ToolResult:
+    """编辑文件"""
+```
+
+**参数**：
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `path` | `str` | ✅ | 文件路径 |
+| `old_str` | `str` | ✅ | 要替换的精确字符串 |
+| `new_str` | `str` | ✅ | 替换后的字符串 |
+
+**返回值**：
+- `ToolResult`：包含编辑状态和文件路径的成功结果，或错误信息
+
+**特性**：
+- ✅ **精确匹配**：`old_str` 必须完全匹配且在文件中唯一
+- ✅ **保留缩进**：自动保留原始缩进格式
+- ✅ **安全编辑**：不会意外修改其他内容
+- ⚠️ **必须先读取**：编辑前需要先读取文件内容
+
+**重要注意事项**：
+1. **必须先读取文件**：编辑前必须使用 `ReadTool` 读取文件
+2. **字符串必须唯一**：`old_str` 在文件中只能出现一次
+3. **精确匹配**：包括所有空格、换行符、缩进等
+
+**示例 1：基本文本替换**
+
+```python
+edit_tool = EditTool()
+
+# 先读取文件
+read_tool = ReadTool()
+file_content = await read_tool.execute(path="example.txt")
+
+# 编辑：替换特定文本
+result = await edit_tool.execute(
+    path="example.txt",
+    old_str="Hello, World!",
+    new_str="Hello, Claude!"
+)
+
+if result.success:
+    print(result.content)  # Successfully edited /path/to/example.txt
+else:
+    print(f"编辑失败: {result.error}")
+```
+
+**示例 2：修改配置项**
+
+```python
+edit_tool = EditTool()
+
+# 文件内容: port = 8000
+result = await edit_tool.execute(
+    path="config.py",
+    old_str="port = 8000",
+    new_str="port = 9000"
+)
+
+if result.success:
+    print("端口已更新")
+```
+
+**示例 3：修改代码**
+
+```python
+edit_tool = EditTool()
+
+# 原始代码:
+# def old_function():
+#     return "old"
+
+result = await edit_tool.execute(
+    path="code.py",
+    old_str="def old_function():\n    return \"old\"",
+    new_str="def new_function():\n    return \"new\""
+)
+
+if result.success:
+    print("函数已重命名")
+```
+
+**示例 4：添加新行**
+
+```python
+edit_tool = EditTool()
+
+# 在文件末尾添加内容
+read_tool = ReadTool()
+content = await read_tool.execute(path="notes.txt")
+
+new_line = "\n# 新增的注释"
+
+result = await edit_tool.execute(
+    path="notes.txt",
+    old_str=content.content,  # 原始全部内容
+    new_str=content.content + new_line  # 添加新行
+)
+```
+
+**错误场景**：
+
+```python
+# 1. old_str 不存在
+result = await edit_tool.execute(
+    path="file.txt",
+    old_str="不存在的内容",
+    new_str="替换内容"
+)
+# result.success = False
+# result.error = "Text not found in file: 不存在的内容"
+
+# 2. old_str 不唯一（出现多次）
+# 如果 "TODO" 在文件中出现多次，会失败
+
+# 3. old_str 部分匹配
+result = await edit_tool.execute(
+    path="file.txt",
+    old_str="port = 8000",  # 文件中是 "port=8000"（没有空格）
+    new_str="port = 9000"
+)
+# 会失败，因为不完全匹配
+```
+
+**最佳实践**：
+
+```python
+# ✅ 推荐的编辑流程
+read_tool = ReadTool()
+edit_tool = EditTool()
+
+# 1. 读取文件
+result = await read_tool.execute(path="file.txt")
+if not result.success:
+    print(f"无法读取文件: {result.error}")
+    return
+
+# 2. 获取原始内容
+original_content = result.content
+
+# 3. 查找要替换的内容（使用原始内容中的精确字符串）
+old_text = "old_value"
+new_text = "new_value"
+
+# 4. 检查 old_text 是否存在且唯一
+if old_text not in original_content:
+    print("要替换的文本不存在")
+    return
+
+# 5. 替换
+result = await edit_tool.execute(
+    path="file.txt",
+    old_str=old_text,
+    new_str=new_text
+)
+
+if result.success:
+    print("编辑成功")
 ```
 
 ---
