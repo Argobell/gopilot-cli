@@ -15,6 +15,7 @@ import (
 	"gopilot-cli/internal/llm"
 	"gopilot-cli/internal/schema"
 	"gopilot-cli/internal/tools"
+	"gopilot-cli/internal/utils/path"
 )
 
 //
@@ -23,15 +24,9 @@ import (
 // ---------------------------------------------------------
 //
 
-// 获取项目根目录（因为 Go test 工作目录在 tests/ 下）
-func projectRoot() string {
-	wd, _ := os.Getwd()
-	return filepath.Join(wd, "..")
-}
-
 // 加载 configs/config.yaml，若失败直接报错
 func loadTestConfig(t *testing.T) *config.Config {
-	path := filepath.Join(projectRoot(), "configs/config.yaml")
+	path := filepath.Join(path.ProjectRoot(), "configs/config.yaml")
 	cfg, err := config.LoadFromFile(path)
 	require.NoError(t, err, "failed to load config.yaml")
 	return cfg

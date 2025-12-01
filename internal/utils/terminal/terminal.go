@@ -1,4 +1,4 @@
-package terminalwidth
+package terminal
 
 import (
 	"regexp"

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tw "gopilot-cli/internal/utils"
+	tw "gopilot-cli/internal/utils/terminal"
 )
 
 // ------------------------
