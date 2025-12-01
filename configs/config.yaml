@@ -1,0 +1,37 @@
+# Gopilot-CLI 配置文件
+
+# LLM 配置
+llm:
+  # API 密钥 (必填)
+  api_key: "sk-abc123"
+  
+  # API 基础 URL
+  # OpenAI: https://api.openai.com/v1
+  api_base: "http://localhost:8080/v1"
+  
+  # 模型名称
+  model: "gpt-oss"
+  
+  # 重试配置
+  retry:
+    # 是否启用重试
+    enabled: true
+    # 最大重试次数
+    max_retries: 3
+    # 初始延迟时间 (秒)
+    initial_delay: 1.0
+    # 最大延迟时间 (秒)
+    max_delay: 60.0
+    # 指数退避基数
+    exponential_base: 2.0
+
+# Agent 配置
+agent:
+  # 最大执行步数
+  max_steps: 50
+  # 工作目录
+  workspace_dir: "./workspace"
+  # 系统提示词文件路径
+  system_prompt_path: "configs/system_prompt.txt"
+  # Token 限制 (触发消息历史摘要的阈值)
+  token_limit: 80000
