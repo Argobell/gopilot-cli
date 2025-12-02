@@ -224,7 +224,7 @@ func defaultSystemPrompt() string {
 }
 
 //
-// runAgent：对应 Python 的 run_agent + 交互 loop，用 go-prompt 实现
+// runAgent
 //
 
 func runAgent(workspaceDir string) error {
@@ -351,7 +351,7 @@ func runAgent(workspaceDir string) error {
 
 			switch cmd {
 			case "/exit", "/quit", "/q":
-				fmt.Printf("\n%s👋 Goodbye! Thanks for using Mini Agent%s\n\n", ColorBrightYellow, ColorReset)
+				fmt.Printf("\n%s👋 Goodbye! Thanks for using Gopilot-CLI%s\n\n", ColorBrightYellow, ColorReset)
 				printStats(ag, sessionStart, len(toolList))
 				os.Exit(0)
 			case "/help":
@@ -392,7 +392,7 @@ func runAgent(workspaceDir string) error {
 		// 非 / 命令：允许 exit/quit/q
 		lower := strings.ToLower(input)
 		if lower == "exit" || lower == "quit" || lower == "q" {
-			fmt.Printf("\n%s👋 Goodbye! Thanks for using Mini Agent%s\n\n", ColorBrightYellow, ColorReset)
+			fmt.Printf("\n%s👋 Goodbye! Thanks for using Gopilot-CLI%s\n\n", ColorBrightYellow, ColorReset)
 			printStats(ag, sessionStart, len(toolList))
 			os.Exit(0)
 		}
