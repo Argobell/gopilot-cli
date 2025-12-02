@@ -1,0 +1,37 @@
+# Go build artifacts
+gopilot
+gopilot.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go coverage / profiling
+*.cover
+*.cov
+coverage.*
+profile.*
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local workspaces and temp dirs
+workspace/
+tmp/
+logs/
+
+# AGENTS.md and CLAUDE.md
+AGENTS.md
+CLAUDE.md
+
