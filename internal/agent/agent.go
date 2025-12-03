@@ -10,39 +10,13 @@ import (
 
 	"log/slog"
 
-	"github.com/pkoukk/tiktoken-go"
-
+	"gopilot-cli/internal/agent/colors"
+	"gopilot-cli/internal/agent/summarizer"
 	"gopilot-cli/internal/llm"
 	"gopilot-cli/internal/logger"
 	"gopilot-cli/internal/schema"
 	"gopilot-cli/internal/tools"
 	terminal "gopilot-cli/internal/utils/terminal"
-)
-
-//
-// ============================================================
-// Terminal Color Codes
-// ============================================================
-//
-
-var (
-	RESET = "\033[0m"
-	BOLD  = "\033[1m"
-	DIM   = "\033[2m"
-
-	RED     = "\033[31m"
-	GREEN   = "\033[32m"
-	YELLOW  = "\033[33m"
-	BLUE    = "\033[34m"
-	MAGENTA = "\033[35m"
-	CYAN    = "\033[36m"
-
-	BRIGHT_RED     = "\033[91m"
-	BRIGHT_GREEN   = "\033[92m"
-	BRIGHT_YELLOW  = "\033[93m"
-	BRIGHT_BLUE    = "\033[94m"
-	BRIGHT_MAGENTA = "\033[95m"
-	BRIGHT_CYAN    = "\033[96m"
 )
 
 //
@@ -123,164 +97,6 @@ func (a *Agent) AddUserMessage(content string) {
 
 //
 // ============================================================
-// Token Estimation (tiktoken-go)
-// ============================================================
-//
-
-func (a *Agent) estimateTokens() int {
-	enc, err := tiktoken.GetEncoding("cl100k_base")
-	if err != nil {
-		return a.estimateTokensFallback()
-	}
-
-	total := 0
-
-	for _, m := range a.messages {
-		total += countTokens(enc, m.Content)
-		total += countTokens(enc, m.Thinking)
-
-		if len(m.ToolCalls) > 0 {
-			raw := fmt.Sprintf("%v", m.ToolCalls)
-			total += len(enc.Encode(raw, nil, nil))
-		}
-
-		total += 4 // metadata overhead
-	}
-
-	return total
-}
-
-func countTokens(enc *tiktoken.Tiktoken, text string) int {
-	if text == "" {
-		return 0
-	}
-	return len(enc.Encode(text, nil, nil))
-}
-
-func (a *Agent) estimateTokensFallback() int {
-	total := 0
-	for _, m := range a.messages {
-		total += len(m.Content) + len(m.Thinking)
-	}
-	return total / 3
-}
-
-//
-// ============================================================
-// Message Summarization
-// ============================================================
-//
-
-func (a *Agent) summarizeMessages(ctx context.Context) error {
-	tokens := a.estimateTokens()
-	if tokens <= a.tokenLimit {
-		return nil
-	}
-
-	fmt.Printf("\n%s📊 Token estimate: %d/%d%s\n",
-		BRIGHT_YELLOW, tokens, a.tokenLimit, RESET)
-	fmt.Printf("%s🔄 Summarizing message history...%s\n", BRIGHT_YELLOW, RESET)
-
-	// 收集所有 user 消息索引（跳过 system）
-	userIdx := []int{}
-	for i, m := range a.messages {
-		if i > 0 && m.Role == "user" {
-			userIdx = append(userIdx, i)
-		}
-	}
-	if len(userIdx) == 0 {
-		fmt.Printf("%s⚠️ No user messages to summarize%s\n", BRIGHT_YELLOW, RESET)
-		return nil
-	}
-
-	var newMsgs []schema.Message
-	newMsgs = append(newMsgs, a.messages[0]) // system
-
-	summaryCount := 0
-
-	for i, ui := range userIdx {
-		newMsgs = append(newMsgs, a.messages[ui])
-
-		var end int
-		if i < len(userIdx)-1 {
-			end = userIdx[i+1]
-		} else {
-			end = len(a.messages)
-		}
-
-		execMsgs := a.messages[ui+1 : end]
-		if len(execMsgs) == 0 {
-			continue
-		}
-
-		// 创建总结文本
-		summary, err := a.createSummary(ctx, execMsgs, i+1)
-		if err != nil {
-			slog.Warn("Summary failed", slog.String("err", err.Error()))
-			continue
-		}
-
-		newMsgs = append(newMsgs, schema.Message{
-			Role:    "user",
-			Content: "[Execution Summary]\n\n" + summary,
-		})
-		summaryCount++
-	}
-
-	a.messages = newMsgs
-	newTokens := a.estimateTokens()
-	fmt.Printf("%s✓ Summary complete (tokens %d → %d)%s\n",
-		BRIGHT_GREEN, tokens, newTokens, RESET)
-
-	return nil
-}
-
-func (a *Agent) createSummary(ctx context.Context, msgs []schema.Message, round int) (string, error) {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Round %d execution process:\n\n", round))
-
-	for _, m := range msgs {
-		switch m.Role {
-		case "assistant":
-			sb.WriteString("Assistant: " + m.Content + "\n")
-			if len(m.ToolCalls) > 0 {
-				names := []string{}
-				for _, tc := range m.ToolCalls {
-					names = append(names, tc.Function.Name)
-				}
-				sb.WriteString("  → Called tools: " + strings.Join(names, ", ") + "\n")
-			}
-		case "tool":
-			sb.WriteString("  ← Tool returned: " + m.Content + "\n")
-		}
-	}
-
-	prompt := fmt.Sprintf(`
-Please summarize the following agent execution process:
-
-%s
-
-Rules:
-- Focus on what the agent did and which tools were used
-- Concise, English, < 800 words
-- Summarize execution only (no user content)
-`, sb.String())
-
-	req := []schema.Message{
-		{Role: "system", Content: "You summarize agent execution processes."},
-		{Role: "user", Content: prompt},
-	}
-
-	resp, err := a.llm.Generate(ctx, req, nil)
-	if err != nil {
-		return sb.String(), err
-	}
-
-	return resp.Content, nil
-}
-
-//
-// ============================================================
 // Main Run Loop
 // ============================================================
 //
@@ -292,32 +108,36 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 	}
 
 	fmt.Printf("%s📝 Log file: %s%s\n",
-		DIM, a.log.GetLogFilePath(), RESET)
+		colors.DIM, a.log.GetLogFilePath(), colors.RESET)
 
 	step := 0
+	msgSummarizer := summarizer.NewSummarizer(a.llm, a.tokenLimit)
 
 	for step < a.maxSteps {
 
 		// 触发摘要
-		if err := a.summarizeMessages(ctx); err != nil {
+		newMsgs, err := msgSummarizer.SummarizeMessages(ctx, a.messages)
+		if err != nil {
 			slog.Warn("Summarization failed", slog.String("err", err.Error()))
+		} else {
+			a.messages = newMsgs
 		}
 
 		// 打印 Step 框
 		stepText := fmt.Sprintf("%s%s💭 Step %d/%d%s",
-			BOLD, BRIGHT_CYAN, step+1, a.maxSteps, RESET)
+			colors.BOLD, colors.BRIGHT_CYAN, step+1, a.maxSteps, colors.RESET)
 		width := terminal.CalculateDisplayWidth(stepText)
 		box := 58
 		padding := box - 1 - width
 
-		fmt.Printf("\n%s╭%s╮%s\n", DIM, strings.Repeat("─", box), RESET)
+		fmt.Printf("\n%s╭%s╮%s\n", colors.DIM, strings.Repeat("─", box), colors.RESET)
 		fmt.Printf("%s│%s %s%s%s│%s\n",
-			DIM, RESET,
+			colors.DIM, colors.RESET,
 			stepText,
 			strings.Repeat(" ", padding),
-			DIM, RESET)
+			colors.DIM, colors.RESET)
 		fmt.Printf("%s╰%s╯%s\n",
-			DIM, strings.Repeat("─", box), RESET)
+			colors.DIM, strings.Repeat("─", box), colors.RESET)
 
 		toolList := []tools.Tool{}
 		for _, t := range a.tools {
@@ -334,7 +154,7 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 		// 调用模型
 		resp, err := a.llm.Generate(ctx, a.messages, reg)
 		if err != nil {
-			fmt.Printf("\n%s❌ LLM Error: %s%s\n", BRIGHT_RED, err.Error(), RESET)
+			fmt.Printf("\n%s❌ LLM Error: %s%s\n", colors.BRIGHT_RED, err.Error(), colors.RESET)
 			return err.Error(), err
 		}
 
@@ -356,13 +176,13 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 
 		// 打印思考
 		if resp.Thinking != "" {
-			fmt.Printf("\n%s🧠 Thinking:%s\n", BOLD+MAGENTA, RESET)
-			fmt.Printf("%s%s%s\n", DIM, resp.Thinking, RESET)
+			fmt.Printf("\n%s🧠 Thinking:%s\n", colors.BOLD+colors.MAGENTA, colors.RESET)
+			fmt.Println("%s%s%s\n", colors.DIM, resp.Thinking, colors.RESET)
 		}
 
 		// 打印模型输出
 		if resp.Content != "" {
-			fmt.Printf("\n%s🤖 Assistant:%s\n", BOLD+BRIGHT_BLUE, RESET)
+			fmt.Printf("\n%s🤖 Assistant:%s\n", colors.BOLD+colors.BRIGHT_BLUE, colors.RESET)
 			fmt.Println(resp.Content)
 		}
 
@@ -380,13 +200,13 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 			args := tc.Function.Arguments
 
 			fmt.Printf("\n%s🔧 Tool Call:%s %s%s%s\n",
-				BRIGHT_YELLOW, RESET, BOLD, CYAN, fname)
+				colors.BRIGHT_YELLOW, colors.RESET, colors.BOLD, colors.CYAN, fname)
 
 			// 打印参数
-			fmt.Printf("%s   Arguments:%s\n", DIM, RESET)
+			fmt.Printf("%s   Arguments:%s\n", colors.DIM, colors.RESET)
 			b, _ := json.MarshalIndent(args, "", "  ")
 			for _, line := range strings.Split(string(b), "\n") {
-				fmt.Printf("   %s%s%s\n", DIM, line, RESET)
+				fmt.Printf("   %s%s%s\n", colors.DIM, line, colors.RESET)
 			}
 
 			tool, ok := a.tools[fname]
@@ -420,12 +240,12 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 			if result.Success {
 				text := result.Content
 				if len(text) > 300 {
-					text = text[:300] + DIM + "..." + RESET
+					text = text[:300] + colors.DIM + "..." + colors.RESET
 				}
-				fmt.Printf("%s✓ Result:%s %s\n", BRIGHT_GREEN, RESET, text)
+				fmt.Printf("%s✓ Result:%s %s\n", colors.BRIGHT_GREEN, colors.RESET, text)
 			} else {
 				fmt.Printf("%s✗ Error:%s %s%s%s\n",
-					BRIGHT_RED, RESET, RED, result.Error, RESET)
+					colors.BRIGHT_RED, colors.RESET, colors.RED, result.Error, colors.RESET)
 			}
 
 			// 添加到消息历史
@@ -446,7 +266,7 @@ func (a *Agent) Run(ctx context.Context) (string, error) {
 	}
 
 	msg := fmt.Sprintf("Task could not complete in %d steps.", a.maxSteps)
-	fmt.Printf("\n%s⚠️ %s%s\n", BRIGHT_YELLOW, msg, RESET)
+	fmt.Printf("\n%s⚠️ %s%s\n", colors.BRIGHT_YELLOW, msg, colors.RESET)
 	return msg, nil
 }
 
